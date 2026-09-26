@@ -62,6 +62,7 @@ def plan(events, tools, content=False):
                 totals[k] += usage.get(k) or 0
             totals["model_calls"] += 1
             totals["cost"] += cost or 0
+            totals["unpriced"] += cost is None
             attributes = {"mlflow.chat.tokenUsage": {"input_tokens": prompt, "output_tokens": usage.get("output") or 0,
                                                       "total_tokens": prompt + (usage.get("output") or 0)},
                           "mlflow.llm.model": data.get("model"), "pi.cache_read_tokens": usage.get("cacheRead") or 0,
@@ -112,7 +113,9 @@ def plan(events, tools, content=False):
             "attributes": {"pi.mode": begun.get("mode"), "pi.model_calls": totals["model_calls"],
                            "pi.input_tokens": totals["input"], "pi.cache_read_tokens": totals["cacheRead"],
                            "pi.cache_write_tokens": totals["cacheWrite"], "pi.output_tokens": totals["output"],
-                           "pi.list_cost_usd": round(totals["cost"] + jev, 6), "jev.list_cost_usd": round(jev, 6),
+                           # A total that silently skipped unpriced calls would understate cost; report it as unknown.
+                           "pi.list_cost_usd": None if totals["unpriced"] else round(totals["cost"] + jev, 6),
+                           "pi.unpriced_model_calls": totals["unpriced"], "jev.list_cost_usd": round(jev, 6),
                            "jev.retrieval_tokens_before_est": totals["retrieval_before"], "jev.retrieval_tokens_shown_est": totals["retrieval_shown"],
                            "jev.retrieval_reduction_pct": round(100 * saved / totals["retrieval_before"], 2) if totals["retrieval_before"] else 0,
                            "jev.calls": totals["jev_calls"], "jev.failures": totals["jev_failures"], "jev.expansions": totals["expansions"]}}

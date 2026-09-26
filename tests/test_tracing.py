@@ -36,6 +36,16 @@ class TracingPlanTests(unittest.TestCase):
         self.assertEqual(root["attributes"]["jev.retrieval_reduction_pct"], 75.0)
         self.assertEqual(root["attributes"]["pi.model_calls"], 2)
 
+    def test_unpriced_model_makes_run_cost_unknown(self):
+        ev = [(i, k, t, {**d, "model": "system.ai.unknown-model"} if k == "model_usage" else d) for i, k, t, d in events()]
+        root = plan(ev, {"s1": {"name": "read"}}, content=False)
+        self.assertIsNone(root["attributes"]["pi.list_cost_usd"])
+        self.assertEqual(root["attributes"]["pi.unpriced_model_calls"], 2)
+        priced = plan([(i, k, t, {**d, "model": "system.ai.claude-opus-5-5"} if k == "model_usage" else d) for i, k, t, d in events()],
+                      {"s1": {"name": "read"}}, content=False)
+        self.assertEqual(priced["attributes"]["pi.unpriced_model_calls"], 0)
+        self.assertGreater(priced["attributes"]["pi.list_cost_usd"], 0)
+
     def test_metadata_mode_withholds_text(self):
         root = plan(events(), {"s1": {"name": "read", "path": "/repo/textwrap.py"}}, content=False)
         blob = repr(root)

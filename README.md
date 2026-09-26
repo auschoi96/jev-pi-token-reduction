@@ -71,7 +71,10 @@ JEV_ROUTER_POLICY=$PWD/jev.config.json JEV_ROUTER_PYTHON=$PWD/.venv/bin/python \
   pi -e $PWD/adapters/pi/extension.ts --jev arrival
 ```
 
-or `make pi` (the `make` targets use `.venv/bin/python` when it exists). The `--jev` flag sets the mode for that run and overrides the `JEV_ROUTER_MODE` environment
+or `make pi` (the `make` targets use `.venv/bin/python` when it exists). The extension works with any Pi model
+provider: point Pi at an existing provider configuration with `PI_CODING_AGENT_DIR=<dir containing models.json>`,
+or, if a launcher starts Pi for you and forwards extra arguments and the environment, append
+`-e <path>/adapters/pi/extension.ts --jev arrival` to its command. The `--jev` flag sets the mode for that run and overrides the `JEV_ROUTER_MODE` environment
 variable; an unknown value falls back to `off`. In Pi, `/jev off|shadow|arrival` switches modes during a session.
 
 | `--jev` / `JEV_ROUTER_MODE` | Behavior |

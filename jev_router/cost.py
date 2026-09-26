@@ -1,11 +1,16 @@
 """List-price cost of recorded usage. These are published prices, never bills."""
 
-PRICE_SOURCE = "Vercel AI Gateway GET /v1/models list prices, fetched 2026-09-24 (<=272K-token tier)"
+PRICE_SOURCE = "Vercel AI Gateway GET /v1/models list prices, fetched 2026-09-24/25 (<=272K-token tier)"
 
 # USD per token.
 PRICES = {
     "gpt-6-sol": {"input": 2e-6, "cache_read": 2e-7, "cache_write": 2.5e-6, "output": 1e-5},
     "gpt-6-luna": {"input": 1e-7, "cache_read": 1e-8, "cache_write": 1.25e-7, "output": 5e-7},
+    "gpt-6-astra": {"input": 1e-5, "cache_read": 1e-6, "cache_write": 1.25e-5, "output": 5e-5},
+    "claude-opus-5-5": {"input": 4e-6, "cache_read": 2e-7, "cache_write": 5e-6, "output": 2e-5},
+    "claude-opus-5": {"input": 5e-6, "cache_read": 5e-7, "cache_write": 6.25e-6, "output": 2.5e-5},
+    "claude-sonnet-5": {"input": 2e-6, "cache_read": 2e-7, "cache_write": 2.5e-6, "output": 1e-5},
+    "claude-fable-5-1": {"input": 1e-5, "cache_read": 2.5e-7, "cache_write": 1.25e-5, "output": 5e-5},
     "claude-opus-4-8": {"input": 5e-6, "cache_read": 5e-7, "cache_write": 6.25e-6, "output": 2.5e-5},
     "claude-sonnet-4-6": {"input": 3e-6, "cache_read": 3e-7, "cache_write": 3.75e-6, "output": 1.5e-5},
     "claude-haiku-4-5": {"input": 1e-6, "cache_read": 1e-7, "cache_write": 1.25e-6, "output": 5e-6},
