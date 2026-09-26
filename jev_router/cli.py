@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import sys
 
-from . import report, tracing
+from . import tracing
 from .policy import Policy
 from .router import Router
 
@@ -18,8 +18,6 @@ def main():
     parser.add_argument("--mode", default=os.environ.get("JEV_ROUTER_MODE", "shadow"))
     parser.add_argument("--selection", default=os.environ.get("JEV_ROUTER_SELECTION", "arrival"))
     parser.add_argument("--export-session")
-    parser.add_argument("--report", nargs="?", const=10, type=int, metavar="N",
-                        help="compare the N most recent sessions (default 10) and exit")
     args = parser.parse_args()
     config = json.loads(Path(args.policy).read_text()) if args.policy else {}
     unknown = set(config) - {f.name for f in fields(Policy)}
@@ -27,9 +25,6 @@ def main():
         parser.error("Unknown policy keys: " + ", ".join(sorted(unknown)))
     router = Router(args.db, policy=Policy(**config), mode=args.mode, selection=args.selection)
     try:
-        if args.report:
-            print(report.render(report.sessions(router.store, args.report, router.policy.price_table)))
-            return
         if args.export_session:
             for row in router.store.db.execute("SELECT id,call_id,data FROM snapshots WHERE session=?", (args.export_session,)):
                 print(json.dumps({"event": "snapshot", "snapshot_id": row[0], "call_id": row[1], **json.loads(row[2])}, ensure_ascii=False))

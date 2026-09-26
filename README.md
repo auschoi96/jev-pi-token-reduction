@@ -86,32 +86,18 @@ tests) and `JEV_DELEGATE_MODEL` (a cheaper read-only sub-agent tool).
 
 ## Compare with and without Jev on your own workload
 
-Run the same task with Jev off and on, then compare the sessions:
+Run the same task with Jev off and on, with [MLflow tracing](#optional-trace-pi-runs-to-mlflow-on-databricks-unity-catalog)
+enabled:
 
 ```bash
 pi -e $PWD/adapters/pi/extension.ts --jev off     "<your task>"
 pi -e $PWD/adapters/pi/extension.ts --jev arrival "<your task>"
-python3 -m jev_router --report 2        # or: make report N=2
 ```
 
-`--report N` lists the N most recent sessions from the local store (`JEV_ROUTER_DB`): mode, model calls,
-prompt tokens (input plus cache), cache writes, output tokens, list cost including Jev, retrieved tokens before
-and after Jev, Jev calls and failures, recoveries, and duration. For example:
-
-```
-started          mode     calls input+cache  cache wr  output  list cost retrieved   shown   cut     jev expand   secs  task
-2026-09-25 20:10 arrival      2       7,685     7,079      62    $0.0196     6,752   6,752    0%   1/0        0    4.0  Read jev_router/router.py ...
-2026-09-25 20:10 off          2       7,685     7,079      69    $0.0196     6,752   6,752    0%   0/0        0    3.3  Read jev_router/router.py ...
-```
-
-Tips:
-- Start each comparison in a fresh session; switching with `/jev` mid-session mixes modes (the report shows
-  them joined with `+`).
-- Model runs vary by 20% or more on identical prompts, so compare several runs per mode before concluding.
-- Costs use the list prices in `jev_router/cost.py`. Add your model under `prices` in `jev.config.json`
-  (USD per token: `input`, `cache_read`, `cache_write`, `output`) if it is not listed.
-- With [MLflow tracing](#optional-trace-pi-runs-to-mlflow-on-databricks-unity-catalog) on, each run's
-  `pi.mode` attribute makes the same comparison in the MLflow UI.
+Each run's root span (`pi_agent_run`) records the mode as `pi.mode`, alongside its token totals, list cost
+including Jev, and retrieved tokens before and after Jev, so the runs can be compared in the MLflow UI or with
+SQL on the `<prefix>_otel_spans` table. Start each comparison in a fresh session, and compare several runs per
+mode: model runs vary by 20% or more on identical prompts.
 
 ## Configuration
 

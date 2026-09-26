@@ -128,7 +128,7 @@ const MODES = ["off", "shadow", "arrival", "dynamic", "cache_aware"];
 export default function (pi: ExtensionAPI) {
   const bridge = new Bridge();
   // `pi --jev off` runs with the extension loaded but no Jev calls and unchanged tool output, so the same
-  // workload can be compared with and without Jev (`python3 -m jev_router --report`).
+  // workload can be compared with and without Jev (each MLflow trace records the mode as `pi.mode`).
   pi.registerFlag("jev", { type: "string", description: `Jev mode for this run: ${MODES.join(" | ")} (overrides JEV_ROUTER_MODE)` });
   let task = "", step = "", turn = 0, modelCall = 0, lastText = "";
   const calls = new Map<string, string>();
@@ -148,10 +148,6 @@ export default function (pi: ExtensionAPI) {
       if (!MODES.includes(flag)) process.stderr.write(`[jev-router] unknown --jev value "${flag}"; using off\n`);
       await bridge.useMode(MODES.includes(flag) ? flag : "off");
     }
-    try {
-      await bridge.request("record", { session_id: session(ctx), event: "session_config", data: {
-        mode: bridge.currentMode, source: flag ? "flag" : process.env.JEV_ROUTER_MODE ? "env" : "default" } });
-    } catch (error) { report(ctx, error); }
     // Reload/resume/fork each get a fresh extension instance. Only Pi's declared
     // parent and the messages actually retained in this branch are inherited.
     const parent = ctx.sessionManager.getHeader()?.parentSession;
@@ -299,11 +295,7 @@ export default function (pi: ExtensionAPI) {
         ctx.ui.notify(`Usage: /jev ${MODES.join("|")}`, "info");
         return;
       }
-      try {
-        await bridge.setMode(mode);
-        await bridge.request("record", { session_id: session(ctx), event: "session_config", data: { mode, source: "command" } });
-        ctx.ui.notify(`Jev mode: ${mode}`, "info");
-      }
+      try { await bridge.setMode(mode); ctx.ui.notify(`Jev mode: ${mode}`, "info"); }
       catch (error) { report(ctx, error); }
     },
   });

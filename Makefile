@@ -2,7 +2,7 @@ PY ?= python3
 CONFIG ?= jev.config.json
 MODE ?= arrival
 
-.PHONY: test check pi report mlflow-setup mlflow-verify
+.PHONY: test check pi mlflow-setup mlflow-verify
 
 # Unit tests; no network.
 test:
@@ -16,11 +16,6 @@ check:
 pi:
 	JEV_ROUTER_POLICY=$(abspath $(CONFIG)) JEV_ROUTER_PYTHON=$(shell command -v $(PY)) \
 	  pi -e $(abspath adapters/pi/extension.ts) --jev $(MODE)
-
-# Compare the N most recent sessions (for example the same task with MODE=off and MODE=arrival).
-N ?= 10
-report:
-	$(PY) -m jev_router --report $(N)
 
 # Optional MLflow tracing on Databricks (Unity Catalog). Requires `pip install -e '.[mlflow]'`.
 PREFIX ?= pi
