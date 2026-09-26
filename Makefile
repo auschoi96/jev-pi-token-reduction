@@ -1,4 +1,5 @@
-PY ?= python3
+# The project venv when present (python3 -m venv .venv), otherwise python3 on PATH.
+PY ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 CONFIG ?= jev.config.json
 MODE ?= arrival
 
@@ -14,7 +15,7 @@ check:
 
 # Interactive Pi with the extension. MODE: off | shadow | arrival | dynamic | cache_aware
 pi:
-	JEV_ROUTER_POLICY=$(abspath $(CONFIG)) JEV_ROUTER_PYTHON=$(shell command -v $(PY)) \
+	JEV_ROUTER_POLICY=$(abspath $(CONFIG)) JEV_ROUTER_PYTHON=$(abspath $(shell command -v $(PY) || echo $(PY))) \
 	  pi -e $(abspath adapters/pi/extension.ts) --jev $(MODE)
 
 # Optional MLflow tracing on Databricks (Unity Catalog). Requires `pip install -e '.[mlflow]'`.

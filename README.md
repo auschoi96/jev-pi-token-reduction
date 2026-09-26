@@ -58,7 +58,8 @@ Any router error keeps the original output.
 ```bash
 git clone https://github.com/auschoi96/jev-pi-token-reduction.git
 cd jev-pi-token-reduction
-python3 -m pip install -e .
+python3 -m venv .venv                 # keep this project's packages out of shared or conda base Pythons
+.venv/bin/pip install -e .            # or -e '.[mlflow]' for optional MLflow tracing
 cp jev.config.example.json jev.config.json
 # Edit jev.config.json: set "allow_roots" to the absolute paths of the repositories whose files may be sent to Jev.
 ```
@@ -66,10 +67,11 @@ cp jev.config.example.json jev.config.json
 Then start Pi with the extension:
 
 ```bash
-JEV_ROUTER_POLICY=$PWD/jev.config.json pi -e $PWD/adapters/pi/extension.ts --jev arrival
+JEV_ROUTER_POLICY=$PWD/jev.config.json JEV_ROUTER_PYTHON=$PWD/.venv/bin/python \
+  pi -e $PWD/adapters/pi/extension.ts --jev arrival
 ```
 
-or `make pi`. The `--jev` flag sets the mode for that run and overrides the `JEV_ROUTER_MODE` environment
+or `make pi` (the `make` targets use `.venv/bin/python` when it exists). The `--jev` flag sets the mode for that run and overrides the `JEV_ROUTER_MODE` environment
 variable; an unknown value falls back to `off`. In Pi, `/jev off|shadow|arrival` switches modes during a session.
 
 | `--jev` / `JEV_ROUTER_MODE` | Behavior |
@@ -156,10 +158,14 @@ Tracing runs after the agent finishes each run, and a tracing failure never affe
 **Set up once:**
 
 ```bash
-python3 -m pip install -e '.[mlflow]'          # MLflow >= 3.14, in the interpreter Pi's worker uses
-python3 -m jev_router.mlflow_setup setup \
+.venv/bin/pip install -e '.[mlflow]'           # MLflow >= 3.14, in the venv Pi's worker uses
+.venv/bin/python -m jev_router.mlflow_setup setup \
   --profile <PROFILE> --catalog <CATALOG> --schema <SCHEMA> --warehouse <SQL_WAREHOUSE_ID>
 ```
+
+Install into a dedicated virtual environment, not a shared or conda base Python: the MLflow extra can upgrade
+NumPy underneath older compiled packages (for example `pyarrow` older than 16), which then print "A module that
+was compiled using NumPy 1.x cannot be run in NumPy 2..." at import or fail outright.
 
 or `make mlflow-setup PROFILE=... CATALOG=... SCHEMA=... WAREHOUSE=...`. This:
 - checks your auth and the warehouse, and creates the schema if needed;
@@ -169,9 +175,9 @@ or `make mlflow-setup PROFILE=... CATALOG=... SCHEMA=... WAREHOUSE=...`. This:
 - writes `jev.mlflow.env` with `MLFLOW_TRACKING_URI`, `DATABRICKS_CONFIG_PROFILE`,
   `JEV_MLFLOW_EXPERIMENT_ID`, `MLFLOW_TRACING_SQL_WAREHOUSE_ID`, and `JEV_MLFLOW_CONTENT`.
 
-**Use it:** `source jev.mlflow.env`, then start Pi with the extension as usual (make sure
-`JEV_ROUTER_PYTHON` is the interpreter with MLflow installed, for example `make pi PY=.venv/bin/python`). Check that traces arrived
-with `python3 -m jev_router.mlflow_setup verify` (or `make mlflow-verify`), or open the experiment's
+**Use it:** `source jev.mlflow.env`, then start Pi with the extension as usual, with `JEV_ROUTER_PYTHON`
+set to the venv's interpreter (`make pi` does this). Check that traces arrived with
+`.venv/bin/python -m jev_router.mlflow_setup verify` (or `make mlflow-verify`), or open the experiment's
 **Traces** tab and choose the SQL warehouse.
 
 **Notes:**

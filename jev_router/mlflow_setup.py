@@ -21,8 +21,12 @@ TABLES = ("otel_spans", "otel_logs", "otel_metrics", "otel_annotations")
 def _mlflow():
     try:
         import mlflow
-    except ImportError:
-        sys.exit("mlflow is not installed: pip install -e '.[mlflow]'")
+    except Exception as error:  # Missing, or broken by conflicting compiled packages in a shared environment.
+        detail = (str(error).strip().splitlines() or [""])[0]
+        sys.exit(f"mlflow could not be imported by {sys.executable} ({type(error).__name__}: {detail})\n"
+                 "Install into a dedicated virtual environment:\n"
+                 "  python3 -m venv .venv && .venv/bin/pip install -e '.[mlflow]'\n"
+                 "  .venv/bin/python -m jev_router.mlflow_setup ...")
     version = tuple(int(x) for x in re.findall(r"\d+", mlflow.__version__)[:2])
     if version < MIN_MLFLOW:
         sys.exit(f"mlflow {mlflow.__version__} is too old; Unity Catalog trace storage needs >= 3.14")
