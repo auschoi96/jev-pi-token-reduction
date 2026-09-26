@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sys
 
+from . import tracing
 from .policy import Policy
 from .router import Router
 
@@ -39,6 +40,10 @@ def main():
                 op, params = request["op"], request.get("params", {})
                 if op in {"route_tool_result", "select_context", "expand_chunk", "inherit_context", "compact", "subcontext"}:
                     result = getattr(router, op)(**params)
+                elif op == "trace_run":
+                    result = tracing.export_run(router.store, params["session_id"])
+                elif op == "trace_flush":
+                    result = tracing.flush()
                 elif op == "record":
                     router.store.event(params["session_id"], params["event"], params["data"])
                     result = {"recorded": True}

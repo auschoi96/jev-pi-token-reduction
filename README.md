@@ -118,6 +118,59 @@ system. The local SQLite store holds original tool output; treat it like an agen
   see little benefit.
 - Measured with one model (`gpt-6-sol`) through one harness; other models may read differently.
 
+## Optional: trace Pi runs to MLflow on Databricks (Unity Catalog)
+
+MLflow has no built-in Pi integration, so the extension builds the traces itself. After each Pi run
+settles, the router turns the events it already recorded into one MLflow trace:
+
+```
+pi_agent_run (AGENT)      prompt, totals: tokens, list cost (incl. Jev), retrieval tokens before/after
+├─ model_call (LLM)       token usage (mlflow.chat.tokenUsage), model, cache reads/writes, list cost
+├─ read (TOOL)            tokens before/after Jev, hidden chunks, Jev calls and failures
+│  └─ jev_visibility      per-level chunk counts, Jev latency
+└─ model_call (LLM)       ...
+```
+
+Traces are stored in Unity Catalog following
+[Store MLflow traces in Unity Catalog](https://docs.databricks.com/aws/en/mlflow3/genai/tracing/trace-unity-catalog).
+Tracing runs after the agent finishes each run, and a tracing failure never affects the agent.
+
+**Requirements:** a Unity Catalog workspace, a SQL warehouse you can use, `USE CATALOG`, `USE SCHEMA`, and
+`CREATE TABLE` on the destination, and a Databricks CLI profile.
+
+**Set up once:**
+
+```bash
+python3 -m pip install -e '.[mlflow]'          # MLflow >= 3.14, in the interpreter Pi's worker uses
+python3 -m jev_router.mlflow_setup setup \
+  --profile <PROFILE> --catalog <CATALOG> --schema <SCHEMA> --warehouse <SQL_WAREHOUSE_ID>
+```
+
+or `make mlflow-setup PROFILE=... CATALOG=... SCHEMA=... WAREHOUSE=...`. This:
+- checks your auth and the warehouse, and creates the schema if needed;
+- creates the experiment `/Users/<you>/jev-pi-traces` (override with `--experiment`) bound to the Unity
+  Catalog location, which creates `<prefix>_otel_spans`, `_otel_logs`, `_otel_metrics`, and
+  `_otel_annotations` (prefix `pi` by default; override with `--prefix`);
+- writes `jev.mlflow.env` with `MLFLOW_TRACKING_URI`, `DATABRICKS_CONFIG_PROFILE`,
+  `JEV_MLFLOW_EXPERIMENT_ID`, `MLFLOW_TRACING_SQL_WAREHOUSE_ID`, and `JEV_MLFLOW_CONTENT`.
+
+**Use it:** `source jev.mlflow.env`, then start Pi with the extension as usual (make sure
+`JEV_ROUTER_PYTHON` is the interpreter with MLflow installed, for example `make pi PY=.venv/bin/python`). Check that traces arrived
+with `python3 -m jev_router.mlflow_setup verify` (or `make mlflow-verify`), or open the experiment's
+**Traces** tab and choose the SQL warehouse.
+
+**Notes:**
+- By default only metadata is logged (token counts, costs, tool names, sizes, Jev decisions). Set
+  `JEV_MLFLOW_CONTENT=full` to also log the prompt, assistant text, tool arguments, and the tool output the
+  model saw. Unity Catalog tables are readable by anyone you grant access to.
+- `DATABRICKS_CONFIG_PROFILE` is pinned because parts of MLflow build their own Databricks client from the
+  default profile; if that points at another workspace, traces are dropped silently.
+- An experiment's Unity Catalog binding is permanent. Re-running `setup` reuses a matching experiment and
+  refuses one bound elsewhere.
+- For other users to write traces, grant `USE CATALOG`, `USE SCHEMA`, and `MODIFY` and `SELECT` on each table.
+- Unity Catalog trace ingestion is limited to 200 traces per second per workspace.
+- Only tested with Databricks as the tracking server.
+
 ## Tests and benchmark
 
 ```bash

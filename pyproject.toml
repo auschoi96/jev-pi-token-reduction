@@ -9,6 +9,10 @@ description = "Pi extension that uses Jev to trim retrieved tool output before t
 requires-python = ">=3.10"
 dependencies = []
 
+[project.optional-dependencies]
+# Optional: trace Pi runs to MLflow; Unity Catalog trace storage needs 3.14+.
+mlflow = ["mlflow[databricks]>=3.14"]
+
 [project.scripts]
 jev-router = "jev_router.cli:main"
 

@@ -118,7 +118,7 @@ function runSubagent(prompt: string, cwd: string, provider: string, model: strin
 
 export default function (pi: ExtensionAPI) {
   const bridge = new Bridge();
-  let task = "", step = "", turn = 0, modelCall = 0;
+  let task = "", step = "", turn = 0, modelCall = 0, lastText = "";
   const calls = new Map<string, string>();
   const evidence: string[] = []; // Signal lines of recent command/search results, for Jev queries only.
   const session = (ctx: any) => ctx.sessionManager.getSessionId();
@@ -147,11 +147,29 @@ export default function (pi: ExtensionAPI) {
     finally { await file?.close(); }
   });
 
-  pi.on("before_agent_start", async (event) => { task = event.prompt; step = task; });
+  // Optional MLflow tracing (JEV_MLFLOW_EXPERIMENT_ID): the worker builds one trace per run from these records.
+  const tracing = Boolean(process.env.JEV_MLFLOW_EXPERIMENT_ID);
+  const fullContent = process.env.JEV_MLFLOW_CONTENT === "full";
+  pi.on("before_agent_start", async (event, ctx) => {
+    task = event.prompt; step = task;
+    if (!tracing) return;
+    try {
+      await bridge.request("record", { session_id: session(ctx), event: "agent_start", data: {
+        prompt_chars: task.length, mode: process.env.JEV_ROUTER_MODE || "shadow", ...(fullContent ? { prompt: task } : {}) } });
+    } catch (error) { report(ctx, error); }
+  });
+  pi.on("agent_settled", async (_event, ctx) => {
+    if (!tracing) return;
+    try {
+      await bridge.request("record", { session_id: session(ctx), event: "agent_settled", data: fullContent ? { text: lastText } : {} });
+      await bridge.request("trace_run", { session_id: session(ctx) });
+    } catch (error) { report(ctx, error); }
+  });
   pi.on("turn_start", async () => { turn += 1; });
   pi.on("message_end", async (event, ctx) => {
     if (event.message.role !== "assistant") return;
     const text = messageText(event.message);
+    if (text) lastText = text;
     const toolCalls = event.message.content.filter(b => b.type === "toolCall");
     if (text || toolCalls.length) {
       step = [text, ...toolCalls.map(b => `Tool: ${b.name} ${JSON.stringify(b.arguments)}`),
@@ -162,7 +180,8 @@ export default function (pi: ExtensionAPI) {
       await bridge.request("record", { session_id: session(ctx), event: "model_usage", data: {
         model_call: modelCall, turn, role: ROLE, model: event.message.model, provider: event.message.provider,
         usage: event.message.usage, stop_reason: event.message.stopReason,
-        error: event.message.errorMessage, tool_calls: event.message.content.filter(b => b.type === "toolCall").length,
+        error: event.message.errorMessage, tool_calls: toolCalls.length, tool_call_names: toolCalls.map(b => b.name),
+        ...(tracing && fullContent ? { text } : {}),
       }});
     } catch (error) { report(ctx, error); }
   });
@@ -262,5 +281,9 @@ export default function (pi: ExtensionAPI) {
       catch (error) { report(ctx, error); }
     },
   });
-  pi.on("session_shutdown", async () => { bridge.close(); });
+  pi.on("session_shutdown", async () => {
+    // MLflow logs traces asynchronously; flush before the worker is stopped.
+    if (tracing) { try { await bridge.request("trace_flush", {}); } catch { /* never block shutdown */ } }
+    bridge.close();
+  });
 }
