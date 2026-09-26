@@ -66,23 +66,52 @@ cp jev.config.example.json jev.config.json
 Then start Pi with the extension:
 
 ```bash
-JEV_ROUTER_POLICY=$PWD/jev.config.json JEV_ROUTER_MODE=arrival \
-  pi -e $PWD/adapters/pi/extension.ts
+JEV_ROUTER_POLICY=$PWD/jev.config.json pi -e $PWD/adapters/pi/extension.ts --jev arrival
 ```
 
-or `make pi`. In Pi, `/jev off|shadow|arrival` switches modes during a session.
+or `make pi`. The `--jev` flag sets the mode for that run and overrides the `JEV_ROUTER_MODE` environment
+variable; an unknown value falls back to `off`. In Pi, `/jev off|shadow|arrival` switches modes during a session.
 
-| `JEV_ROUTER_MODE` | Behavior |
+| `--jev` / `JEV_ROUTER_MODE` | Behavior |
 | --- | --- |
 | `arrival` | **Recommended.** Prune each result once when it arrives. This is the measured mode. |
 | `shadow` | Default. Score and log proposed cuts, but show everything unchanged. |
-| `off` | No Jev calls. |
+| `off` | No Jev calls and tool output unchanged, but token usage is still recorded, so runs can be compared. |
 | `dynamic`, `cache_aware` | Experimental: reconsider earlier results before each model call. Rewriting history can defeat prompt caching; `dynamic` cost more in our tests. |
 
 Other environment variables: `JEV_ROUTER_DB` (default `~/.local/state/jev-router/router.sqlite`),
 `JEV_ROUTER_PYTHON` (interpreter with this package installed), `JEV_GATEWAY_ONLY` (gateway provider pin,
 default `typesafe-ai`). Experimental and off by default: `JEV_ROUTER_COMPACTION=jev` (cost more in our
 tests) and `JEV_DELEGATE_MODEL` (a cheaper read-only sub-agent tool).
+
+## Compare with and without Jev on your own workload
+
+Run the same task with Jev off and on, then compare the sessions:
+
+```bash
+pi -e $PWD/adapters/pi/extension.ts --jev off     "<your task>"
+pi -e $PWD/adapters/pi/extension.ts --jev arrival "<your task>"
+python3 -m jev_router --report 2        # or: make report N=2
+```
+
+`--report N` lists the N most recent sessions from the local store (`JEV_ROUTER_DB`): mode, model calls,
+prompt tokens (input plus cache), cache writes, output tokens, list cost including Jev, retrieved tokens before
+and after Jev, Jev calls and failures, recoveries, and duration. For example:
+
+```
+started          mode     calls input+cache  cache wr  output  list cost retrieved   shown   cut     jev expand   secs  task
+2026-09-25 20:10 arrival      2       7,685     7,079      62    $0.0196     6,752   6,752    0%   1/0        0    4.0  Read jev_router/router.py ...
+2026-09-25 20:10 off          2       7,685     7,079      69    $0.0196     6,752   6,752    0%   0/0        0    3.3  Read jev_router/router.py ...
+```
+
+Tips:
+- Start each comparison in a fresh session; switching with `/jev` mid-session mixes modes (the report shows
+  them joined with `+`).
+- Model runs vary by 20% or more on identical prompts, so compare several runs per mode before concluding.
+- Costs use the list prices in `jev_router/cost.py`. Add your model under `prices` in `jev.config.json`
+  (USD per token: `input`, `cache_read`, `cache_write`, `output`) if it is not listed.
+- With [MLflow tracing](#optional-trace-pi-runs-to-mlflow-on-databricks-unity-catalog) on, each run's
+  `pi.mode` attribute makes the same comparison in the MLflow UI.
 
 ## Configuration
 

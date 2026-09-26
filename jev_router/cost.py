@@ -16,16 +16,16 @@ PRICES = {
 PI_FIELDS = {"input": "input", "cacheRead": "cache_read", "cacheWrite": "cache_write", "output": "output"}
 
 
-def model_key(model):
+def model_key(model, prices=PRICES):
     name = (model or "").lower().rsplit("/", 1)[-1]
     name = name.removeprefix("system.ai.").replace(".", "-")
-    if name not in PRICES:
+    if name not in prices:
         raise KeyError(f"No list price for model {model!r}")
     return name
 
 
 def usage_cost(usage, model, prices=PRICES):
-    price = prices[model_key(model)]
+    price = prices[model_key(model, prices)]
     return sum((usage.get(field) or 0) * price[key] for field, key in PI_FIELDS.items())
 
 
@@ -38,7 +38,7 @@ def jev_cost(usages, prices=PRICES):
 def cache_multipliers(model=None, prices=PRICES):
     """(read, write) prices relative to uncached input; Anthropic/OpenAI ratios when unknown."""
     try:
-        price = prices[model_key(model)]
+        price = prices[model_key(model, prices)]
         return price["cache_read"] / price["input"], price["cache_write"] / price["input"]
     except KeyError:
         return 0.1, 1.25
