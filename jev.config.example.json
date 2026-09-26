@@ -1,0 +1,38 @@
+{
+  "version": "visibility-v3",
+  "allow_roots": [
+    "/absolute/path/to/your/repo"
+  ],
+  "allow_commands": false,
+  "route_failed_commands": true,
+  "min_tokens": 1500,
+  "score_with_jev": true,
+  "dedupe_tracebacks": true,
+  "omit_risk": 0.2,
+  "min_confidence": 0.0,
+  "batch_chars": 10000,
+  "batch_size": 12,
+  "timeout_seconds": 8.0,
+  "result_budget_seconds": 20.0,
+  "retries": 3,
+  "retry_base_seconds": 0.5,
+  "outline_first": false,
+  "outline_batch_size": 40,
+  "cache_ttl_seconds": 300.0,
+  "expected_remaining_calls": 5,
+  "compaction_budget_tokens": 12000,
+  "subcontext_budget_tokens": 6000,
+  "prices": {},
+  "denied_names": [
+    ".env",
+    ".ssh",
+    ".aws",
+    ".databrickscfg",
+    ".jev_key",
+    "auth.json",
+    "credentials",
+    "secrets.json",
+    "id_rsa",
+    "id_ed25519"
+  ]
+}

@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jev-pi-token-reduction"
+version = "0.1.0"
+description = "Pi extension that uses Jev to trim retrieved tool output before the model sees it"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+jev-router = "jev_router.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["jev_router*"]
