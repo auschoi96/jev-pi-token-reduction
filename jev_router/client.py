@@ -19,7 +19,11 @@ JEV_GATEWAY_ONLY = [p for p in os.environ.get("JEV_GATEWAY_ONLY", "typesafe-ai")
 
 
 def _api_key():
-    key = os.environ.get("AI_GATEWAY_API_KEY") or os.environ.get("TYPESAFE_API_KEY", "")
+    # JEV_API_KEY is the documented name. AI_GATEWAY_API_KEY is kept as a fallback because the default
+    # endpoint is the Vercel AI Gateway, whose standard env var that is (unrelated to Pi's own Databricks
+    # AI Gateway); TYPESAFE_API_KEY is for talking to TypeSafe directly.
+    key = (os.environ.get("JEV_API_KEY") or os.environ.get("AI_GATEWAY_API_KEY")
+           or os.environ.get("TYPESAFE_API_KEY", ""))
     if not key:
         try:
             key = Path(os.environ.get("JEV_KEY_FILE", str(Path.home() / ".jev_key"))).read_text().strip()

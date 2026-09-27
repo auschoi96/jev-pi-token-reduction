@@ -197,6 +197,38 @@ class RouterTests(unittest.TestCase):
         self.assertEqual(result["metrics"]["jev_failures"], 0)
         self.assertEqual(len(result["hidden_refs"]), 3)
 
+    def test_rate_limit_cooldown_waits_within_budget_else_keeps_original(self):
+        import time
+        r = self.router()
+        r.scorer.cooldown_until = time.monotonic() + 0.05
+        result = self.route(r)
+        self.assertEqual(result["metrics"]["jev_cooldown_waits"], 1)
+        self.assertEqual(result["metrics"]["jev_failures"], 0)
+        self.assertEqual(len(result["hidden_refs"]), 3)
+        short = self.router(policy=Policy(allow_roots=(str(self.root),), min_tokens=0, result_budget_seconds=0.5))
+        short.scorer.cooldown_until = time.monotonic() + 60
+        started = time.monotonic()
+        result = self.route(short, session_id="session-b")
+        self.assertLess(time.monotonic() - started, 5)
+        self.assertEqual(result["visible_output"], source())
+        self.assertEqual(result["metrics"]["jev_cooldown_waits"], 0)
+
+    def test_aggressive_scoring_sends_compression_biased_question(self):
+        from jev_router.chunking import AGGRESSIVE_LEVELS, LEVELS
+        seen = []
+        def client(state, questions, **kwargs):
+            seen.extend(questions.values())
+            return {"answers": {k: answer() for k in questions}}
+        for aggressive in (False, True):
+            r = self.router(client=client, policy=Policy(allow_roots=(str(self.root),), min_tokens=0, aggressive_scoring=aggressive))
+            self.route(r, session_id=f"session-{aggressive}")
+        default = [q for q in seen if q["criteria"] == LEVELS]
+        biased = [q for q in seen if q["criteria"] == AGGRESSIVE_LEVELS]
+        self.assertTrue(default and biased)
+        self.assertEqual(set(AGGRESSIVE_LEVELS), set(LEVELS))
+        self.assertIn("prefer hide or short", biased[0]["instructions"])
+        self.assertNotIn("prefer hide or short", default[0]["instructions"])
+
     def test_outline_first_hides_without_full_text_scoring(self):
         seen = []
         def client(state, questions, **kwargs):

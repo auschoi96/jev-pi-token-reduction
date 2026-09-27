@@ -8,6 +8,13 @@ LEVELS = {
     "short": "This chunk is only tangentially related; a one-line gist is all the query needs.",
     "hide": "This chunk is irrelevant to the current query; do not show it at all.",
 }
+# Same levels, worded to push Jev toward compression (Policy.aggressive_scoring).
+AGGRESSIVE_LEVELS = {
+    "full": "This chunk holds the exact value, fact, or code the current step depends on; show it verbatim.",
+    "long": "This chunk is directly needed, but only its substance; drop blank lines, comments, and repeated lines.",
+    "short": "This chunk is loosely related, background, or confirms what is already known; a one-line gist is enough.",
+    "hide": "This chunk is not needed for the current step; omit it (it stays recoverable).",
+}
 _SHOWN = {"full", "long"}  # levels that retain a chunk's full content
 
 # A top-level def/class/decorator, or a module-level CONSTANT assignment, starts a new chunk.

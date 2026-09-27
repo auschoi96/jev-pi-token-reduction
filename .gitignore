@@ -6,4 +6,5 @@ node_modules/
 jev.config.json
 results/
 jev.mlflow.env
+pi-agent/
 .claude/

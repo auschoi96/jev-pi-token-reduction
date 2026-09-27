@@ -9,6 +9,7 @@
   "score_with_jev": true,
   "dedupe_tracebacks": true,
   "omit_risk": 0.2,
+  "aggressive_scoring": false,
   "min_confidence": 0.0,
   "batch_chars": 10000,
   "batch_size": 12,

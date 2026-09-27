@@ -2,7 +2,6 @@
 """Resumable, sequential Pi pilot with fresh snapshots and independent oracles."""
 import argparse
 import ast
-import configparser
 import hashlib
 import json
 import math
@@ -10,7 +9,6 @@ import os
 from pathlib import Path
 import random
 import re
-import shlex
 import shutil
 import signal
 import sqlite3
@@ -19,6 +17,8 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from jev_router.pi_setup import auth_key_command, host_for_profile
 MODES = ("off", "shadow", "arrival", "dynamic")
 
 
@@ -207,12 +207,11 @@ def main():
             t["required_spans"] = required_spans(dest, t["symbols"])
             if len(t["required_spans"]) != len(t["symbols"]):
                 parser.error(f"Unresolved answer spans: {t['id']}: {set(t['symbols'])-set(t['required_spans'])}")
-        config = configparser.ConfigParser(); config.read(Path.home()/".databrickscfg")
-        host = config[args.profile]["host"].rstrip("/")
+        host = host_for_profile(args.profile)
         agent = out / "pi-agent"; agent.mkdir(mode=0o700, exist_ok=True)
         (agent / "models.json").write_text(json.dumps({"providers":{"jev-native-pilot":{
             "baseUrl":host+"/ai-gateway/codex/v1", "api":"openai-responses", "authHeader":True,
-            "apiKey":"!databricks auth token --profile "+shlex.quote(args.profile)+" --output json | jq -r .access_token",
+            "apiKey":auth_key_command(args.profile),
             "models":[{"id":model,"reasoning":True,"input":["text"],"contextWindow":200000,"maxTokens":8192}]}}},indent=2))
         (agent / "settings.json").write_text(json.dumps({"retry":{"enabled":False}}))
         rng = random.Random(args.seed)
