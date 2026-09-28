@@ -49,7 +49,7 @@ Any router error keeps the original output.
 - Pi 0.84.x (tested with 0.84.2)
 - Python 3.10+ (no third-party runtime dependencies)
 - A Jev API key. By default requests go to the Vercel AI Gateway (`https://ai-gateway.vercel.sh/v1/evaluate`,
-  model `typesafe-ai/jev`); set `AI_GATEWAY_API_KEY`, or put the key in `~/.jev_key`. For TypeSafe directly,
+  model `typesafe-ai/jev`); set `JEV_API_KEY`, or put the key in `~/.jev_key`. For TypeSafe directly,
   set `JEV_API_URL=https://api.typesafe.ai/v1/systemone`, `JEV_MODEL=jev-latest`, and `TYPESAFE_API_KEY`.
 - Node.js only if you want to type-check the extension (`npm --prefix adapters/pi ci && npm --prefix adapters/pi run check`)
 
@@ -72,6 +72,27 @@ JEV_ROUTER_POLICY=$PWD/jev.config.json pi -e $PWD/adapters/pi/extension.ts --jev
 or `make pi`. The `--jev` flag sets the mode for that run and overrides the `JEV_ROUTER_MODE` environment
 variable; an unknown value falls back to `off`. In Pi, `/jev off|shadow|arrival` switches modes during a session.
 
+### Point Pi at a model provider
+
+The extension only prunes tool results; Pi still needs a model provider of its own. Configure Pi however
+you like (its own `models.json` with an Anthropic/OpenAI key works, and `make pi` leaves that untouched).
+
+To use a **Databricks AI Gateway** instead, without ucode, run this once:
+
+```bash
+make pi-setup PROFILE=<your ~/.databrickscfg profile>   # or add MODEL=system.ai.claude-sonnet-5
+```
+
+This reads the workspace host from `~/.databrickscfg` and writes a private `pi-agent/` config with
+`databricks-openai` (codex) and `databricks-claude` providers pointing at your gateway. Each request mints
+a fresh OAuth token via `databricks auth token` — nothing that expires is stored. `make pi` then uses
+`pi-agent/` automatically; delete the directory to go back to Pi's own config. Requires a workspace with the
+AI Gateway coding-agent routes (`/ai-gateway/anthropic`, `/ai-gateway/codex/v1`) enabled, and `databricks`
+and `python3` on `PATH`. Edit `pi-agent/models.json` to match the models your workspace exposes.
+
+For the full clone-to-running-Jev walkthrough on Databricks — Jev key, `allow_roots`, gateway setup, and
+verifying trimming — see [databricks_quickstart.md](databricks_quickstart.md).
+
 | `--jev` / `JEV_ROUTER_MODE` | Behavior |
 | --- | --- |
 | `arrival` | **Recommended.** Prune each result once when it arrives. This is the measured mode. |
@@ -90,9 +111,14 @@ Run the same task with Jev off and on, with [MLflow tracing](#optional-trace-pi-
 enabled:
 
 ```bash
-pi -e $PWD/adapters/pi/extension.ts --jev off     "<your task>"
-pi -e $PWD/adapters/pi/extension.ts --jev arrival "<your task>"
+JEV_ROUTER_POLICY=$PWD/jev.config.json pi -e $PWD/adapters/pi/extension.ts --jev off     "<your task>"
+JEV_ROUTER_POLICY=$PWD/jev.config.json pi -e $PWD/adapters/pi/extension.ts --jev arrival "<your task>"
 ```
+
+`JEV_ROUTER_POLICY` is required here: without it `allow_roots` is empty and nothing is scored, so `arrival`
+would trim nothing and the comparison would be meaningless. If you configured Pi with `make pi-setup` (the
+Databricks gateway), also prefix each command with `PI_CODING_AGENT_DIR=$PWD/pi-agent` — what `make pi` sets
+for you.
 
 Each run's root span (`pi_agent_run`) records the mode as `pi.mode`, alongside its token totals, list cost
 including Jev, and retrieved tokens before and after Jev, so the runs can be compared in the MLflow UI or with
@@ -110,6 +136,7 @@ unknown keys are rejected. The main ones:
 | `allow_commands` | `false` | Also route shell and search output (it can contain data from anywhere). |
 | `min_tokens` | `1500` | Smaller results are never scored. |
 | `omit_risk` | `0.2` | Higher cuts more aggressively. |
+| `aggressive_scoring` | `false` | Ask Jev to favor hiding and outlining unless a chunk holds the exact fact the step needs. Uncalibrated. |
 | `min_confidence` | `0.0` | Optional floor on Jev's self-reported confidence. |
 | `dedupe_tracebacks` | `true` | Collapse repeated tracebacks in command output. |
 | `retries`, `timeout_seconds`, `result_budget_seconds` | `3`, `8`, `20` | Jev call limits; on failure the original is kept. |
@@ -169,15 +196,20 @@ or `make mlflow-setup PROFILE=... CATALOG=... SCHEMA=... WAREHOUSE=...`. This:
 - writes `jev.mlflow.env` with `MLFLOW_TRACKING_URI`, `DATABRICKS_CONFIG_PROFILE`,
   `JEV_MLFLOW_EXPERIMENT_ID`, `MLFLOW_TRACING_SQL_WAREHOUSE_ID`, and `JEV_MLFLOW_CONTENT`.
 
-**Use it:** `source jev.mlflow.env`, then start Pi with the extension as usual (make sure
-`JEV_ROUTER_PYTHON` is the interpreter with MLflow installed, for example `make pi PY=.venv/bin/python`). Check that traces arrived
-with `python3 -m jev_router.mlflow_setup verify` (or `make mlflow-verify`), or open the experiment's
-**Traces** tab and choose the SQL warehouse.
+**Use it:** run `make pi`, which auto-loads `jev.mlflow.env` when it exists, so tracing works in any
+terminal without a manual `source` (make sure `JEV_ROUTER_PYTHON` is the interpreter with MLflow installed,
+for example `make pi PY=.venv/bin/python`). If you start Pi directly (`pi -e …` instead of `make pi`),
+`source jev.mlflow.env` first — the extension reads `JEV_MLFLOW_EXPERIMENT_ID` once at startup, so a
+terminal without it traces nothing (no error). Check that traces arrived with `python3 -m
+jev_router.mlflow_setup verify` (or `make mlflow-verify`), or open the experiment's **Traces** tab and
+choose a running SQL warehouse.
 
 **Notes:**
 - By default only metadata is logged (token counts, costs, tool names, sizes, Jev decisions). Set
   `JEV_MLFLOW_CONTENT=full` to also log the prompt, assistant text, tool arguments, and the tool output the
-  model saw. Unity Catalog tables are readable by anyone you grant access to.
+  model saw — e.g. `JEV_MLFLOW_CONTENT=full make pi`. A value set in your shell overrides the one in
+  `jev.mlflow.env` (the file is only a default), so you can toggle it per run. Unity Catalog tables are
+  readable by anyone you grant access to.
 - `DATABRICKS_CONFIG_PROFILE` is pinned because parts of MLflow build their own Databricks client from the
   default profile; if that points at another workspace, traces are dropped silently.
 - An experiment's Unity Catalog binding is permanent. Re-running `setup` reuses a matching experiment and
