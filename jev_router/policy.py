@@ -30,6 +30,8 @@ class Policy:
     # A chunk is shown at the most compressed rung whose probability of needing more is <= omit_risk.
     # 0.2 / 0.0 calibrated on a 30-task development set (eval/native_tasks.py); see README for held-out results.
     omit_risk: float = 0.2
+    # Word Jev's question to favor hide/short (see scoring.AGGRESSIVE_INSTRUCTIONS). Uncalibrated; off by default.
+    aggressive_scoring: bool = False
     # Floor on Jev's self-reported confidence; below it the chunk stays full.
     min_confidence: float = 0.0
     batch_chars: int = 10000

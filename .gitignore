@@ -6,4 +6,16 @@ node_modules/
 jev.config.json
 results/
 jev.mlflow.env
+pi-agent/
 .claude/
+
+# Local IDE / tool config
+.idea/
+.isaac/
+
+# Benchmark logs and scratch analysis (generated locally)
+bench_logs/
+
+# Local research / scratch notes (not part of the repo)
+jev_databricks_findings.md
+jev_proposes_section.md

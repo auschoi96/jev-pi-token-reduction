@@ -122,10 +122,11 @@ def plan(events, tools, content=False):
     return root
 
 
-def _emit(mlflow, spec, parent, experiment_id, metadata=None):
+def _emit(mlflow, spec, parent, experiment_id, metadata=None, tags=None):
     ns = lambda t: int(t * 1e9)
-    # experiment_id is only valid on the root: MLflow 3.16 silently drops a child span given one.
-    root_only = {"metadata": metadata, "experiment_id": experiment_id} if parent is None else {}
+    # experiment_id and trace-level tags are only valid on the root: MLflow 3.16 silently drops a
+    # child span given one.
+    root_only = {"metadata": metadata, "experiment_id": experiment_id, "tags": tags} if parent is None else {}
     span = mlflow.start_span_no_context(spec["name"], span_type=spec["type"], parent_span=parent, inputs=spec.get("inputs"),
                                         attributes={k: v for k, v in spec.get("attributes", {}).items() if v is not None},
                                         start_time_ns=ns(spec["start"]), **root_only)
@@ -153,7 +154,11 @@ def export_run(store, session_id):
         spec = plan(events, tools, content_mode())
         experiment_id = os.environ["JEV_MLFLOW_EXPERIMENT_ID"]
         mlflow.set_experiment(experiment_id=experiment_id)
-        root = _emit(mlflow, spec, None, experiment_id, metadata={"mlflow.trace.session": session_id})
+        # Trace-level tag so runs are filterable by mode in the Traces UI and search_traces
+        # (`tags.jev.mode = 'arrival'`); mirrors the root span's pi.mode attribute.
+        mode = spec["attributes"].get("pi.mode")
+        tags = {"jev.mode": mode} if mode else None
+        root = _emit(mlflow, spec, None, experiment_id, metadata={"mlflow.trace.session": session_id}, tags=tags)
         store.event(session_id, "trace_exported", {"trace_id": root.trace_id, "experiment_id": experiment_id, "spans": 1 + _count(spec)})
         return {"trace_id": root.trace_id, "experiment_id": experiment_id}
     except Exception as error:  # Tracing must never break the agent.
